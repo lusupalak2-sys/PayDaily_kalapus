@@ -271,13 +271,23 @@ $('#del').onclick=()=>{if($('#del').dataset.arm!=='1'){$('#del').dataset.arm='1'
 $('#goalIn').onchange=e=>{const g=parseFloat(e.target.value);if(g>0)goal=g;persist();render()};
 $('#themeBtn').onclick=()=>{const r=document.documentElement,dark=getComputedStyle(r).getPropertyValue('--bg').trim()==='#0E1A17';r.dataset.theme=dark?'light':'dark'};
 $('#xl').onclick=async()=>{
-  const dl=window.claude?await claude.use('downloads'):null;
-  if(!dl||typeof XLSX==='undefined')return toast('ส่งออกไฟล์ไม่ได้ในมุมมองนี้');
+  if(typeof XLSX==='undefined')return toast('ส่งออกไฟล์ไม่ได้ในมุมมองนี้');
   const r=[...tx].sort((a,b)=>a.y-b.y||a.m-b.m||a.d-b.d).map(x=>({'วันที่':`${x.y}-${pad(x.m)}-${pad(x.d)}`,'ประเภท':x.t==='inc'?'รายรับ':'รายจ่าย','หมวดหมู่':x.c,'ชื่อรายการ':x.n||'','บัญชี':x.w||'','จำนวนเงิน':x.a}));
   const ws=XLSX.utils.json_to_sheet(r);ws['!cols']=[{wch:12},{wch:9},{wch:12},{wch:24},{wch:16},{wch:14}];
   const ms=[...new Set(tx.map(x=>x.y*100+x.m))].sort().map(k=>{const y=Math.floor(k/100),m=k%100,l=tx.filter(x=>x.y===y&&x.m===m),a=sum(l,'inc'),b=sum(l,'exp');return{'ปี (พ.ศ.)':y+543,'เดือน':MTH[m-1],'รายรับ':a,'รายจ่าย':b,'คงเหลือ':a-b}});
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'รายการทั้งหมด');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(ms),'สรุปรายเดือน');
-  try{await dl.save({filename:'income-expense.xlsx',data:XLSX.write(wb,{bookType:'xlsx',type:'array'})});toast('ส่งออกแล้ว')}catch(e){if(e.code!=='declined')toast('ส่งออกไม่สำเร็จ')}};
+  try{
+    const dl=window.claude?await claude.use('downloads').catch(()=>null):null;
+    const bytes=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    if(dl){await dl.save({filename:'income-expense.xlsx',data:bytes});}
+    else{
+      const blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      const url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download='income-expense.xlsx';document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+    }
+    toast('ส่งออกแล้ว')
+  }catch(e){if(e.code!=='declined')toast('ส่งออกไม่สำเร็จ')}};
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',1800)}
 render();
 </script>
